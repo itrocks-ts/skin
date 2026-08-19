@@ -22,11 +22,13 @@ function fixture(context, packageName = '@demo/content')
 	const packageRoot    = path.join(application, 'node_modules', ...packageName.split('/'))
 	const previousAppDir = appDirModule.appDir
 	const previousSkin   = config.skin
+	const previousDebug  = config.skinDiagnostics
 	createFile(path.join(packageRoot, 'package.json'), JSON.stringify({ name: packageName }))
 	appDirModule.appDir = application
 	context.after(() => {
-		appDirModule.appDir = previousAppDir
-		config.skin         = previousSkin
+		appDirModule.appDir    = previousAppDir
+		config.skin            = previousSkin
+		config.skinDiagnostics = previousDebug
 		fs.rmSync(application, { force: true, recursive: true })
 	})
 	return {
@@ -93,6 +95,25 @@ test('preserves native template rendering when no skin is configured', async con
 	config.skin    = {}
 
 	assert.equal(await new SkinTemplate({ message: 'ORIGINAL' }).parseFile(original), '<p>ORIGINAL</p>')
+})
+
+test('writes runtime diagnostics only when explicitly enabled', async context => {
+	const app      = fixture(context)
+	const original = app.original('cjs/page.html', '<p>ORIGINAL</p>')
+	const target   = app.skin('skin/page.html', '<p>SKIN</p>')
+	const entries  = []
+	const previous = console.debug
+	config.skin = { '@demo/content/page.html': '/skin/page.html' }
+	console.debug = entry => entries.push(entry)
+	context.after(() => { console.debug = previous })
+
+	config.skinDiagnostics = false
+	await new SkinTemplate().parseFile(original)
+	assert.deepEqual(entries, [])
+
+	config.skinDiagnostics = true
+	await new SkinTemplate().parseFile(original)
+	assert.deepEqual(entries, [`[skin] template @demo/content/cjs/page.html: replaced by ${target}`])
 })
 
 test('does not feed a replacement in node_modules back into another skin rule', async context => {

@@ -21,6 +21,14 @@ export type SkinResolution = {
 	replacement?: string
 }
 
+export type SkinDiagnosticEvent = SkinResolution & {
+	kind: SkinResourceKind
+}
+
+export type SkinResolverOptions = {
+	diagnostic?: (event: SkinDiagnosticEvent) => void
+}
+
 export type SkinValidationCode =
 	| 'AMBIGUOUS_ALIAS'
 	| 'INVALID_RULE'
@@ -126,7 +134,11 @@ export class SkinResolver
 	private readonly appRoot:     string
 	private readonly modulesRoot: string
 
-	constructor(private readonly config: SkinConfig, appDir: string)
+	constructor(
+		private readonly config: SkinConfig,
+		appDir: string,
+		private readonly options: SkinResolverOptions = {}
+	)
 	{
 		this.appRoot     = resolve(appDir)
 		this.modulesRoot = join(this.appRoot, 'node_modules')
@@ -336,9 +348,9 @@ export class SkinResolver
 	{
 		const original = isAbsolute(file) ? normalize(file) : file
 		const source   = this.sourceResource(file, kind)
-		if (!source) return { found: false, logical: original, original }
+		if (!source) return this.report({ found: false, logical: original, original }, kind)
 		const replacement = this.replacement(source)
-		if (!replacement) return { found: false, logical: source.logical, original }
+		if (!replacement) return this.report({ found: false, logical: source.logical, original }, kind)
 		const packageTarget = replacement.rule === source.packageName
 		const targetRoot    = packageTarget ? this.targetPath(this.config[replacement.rule]) : this.appRoot
 		const realTarget    = packageTarget
@@ -352,12 +364,18 @@ export class SkinResolver
 			)
 		}
 		this.assertTargetFile(replacement.path, realTarget, replacement.rule)
-		return {
+		return this.report({
 			found: true,
 			logical: source.logical,
 			original,
 			replacement: replacement.path
-		}
+		}, kind)
+	}
+
+	private report(resolution: SkinResolution, kind: SkinResourceKind): SkinResolution
+	{
+		this.options.diagnostic?.({ ...resolution, kind })
+		return resolution
 	}
 
 	isTarget(file: string): boolean

@@ -12,8 +12,8 @@ Enables it.rocks applications to be skinned with custom templates, styles, and i
 
 The deterministic resolver validates file-specific and package-wide skin rules. The composed runtime integrations
 transparently replace final HTML templates, CSS stylesheets, and JPG or PNG images while preserving their public paths
-and native template or HTTP handling. The remaining stabilization work is tracked in
-[the development plan](docs/README.md).
+and native template or HTTP handling. The package is validated and ready for use; implementation evidence is tracked
+in [the development plan](docs/README.md).
 
 ## Installation
 
@@ -38,6 +38,37 @@ SCSS sources are outside this package's responsibility.
 
 Paths beginning with `/` will be relative to the application root. Paths beginning with `./` will keep the existing
 `@itrocks/config` behaviour and be resolved relative to the package that declares them.
+
+### Package skins and application overrides
+
+A standalone skin package depends on `@itrocks/skin`, publishes its replacement tree, and contributes a package rule:
+
+```yaml
+# @demo/blue-skin/config.yaml
+skin:
+  '@itrocks/home': ./content
+```
+
+The replacement tree mirrors every eligible final artifact from `@itrocks/home`, including build directories:
+
+```text
+content/
+└── cjs/
+    ├── container.html
+    └── output.html
+```
+
+An application can keep that package skin and override one published artifact. Application configuration is loaded
+last by `@itrocks/config`, and the exact rule has priority over the package rule:
+
+```yaml
+# application config.yaml
+skin:
+  '@itrocks/home/output.html': ./output.html
+```
+
+Copyable configuration layouts are available in [the minimal application](examples/application) and
+[the standalone skin package](examples/package-skin).
 
 ## Resolver
 
@@ -67,6 +98,30 @@ strict: validation fails when an eligible target artifact is missing, unless a f
 Targets and source rules containing traversal or mixed separators are rejected. Validation also resolves symbolic
 links and rejects any source or target that escapes its allowed package or application root.
 
+Validation issues contain a stable `code`, the offending `rule`, and an actionable `message`. Applications should
+fail bootstrap when `valid` is false rather than accepting traffic with an incomplete package skin.
+
+## Diagnostics
+
+Runtime diagnostics are disabled by default. Enable them explicitly in application configuration when investigating
+a resolution:
+
+```yaml
+skinDiagnostics: true
+```
+
+The composed template and Fastify integrations then write one debug entry per eligible resolution, including its
+resource kind, logical path, and replacement or unchanged outcome. Disable the flag after diagnosis because physical
+target paths are intentionally included.
+
+Library callers can collect structured events without console output:
+
+```ts
+const resolver = new SkinResolver(config.skin ?? {}, appDir, {
+	diagnostic: event => audit.push(event)
+})
+```
+
 ## Runtime integration
 
 The package composes `@itrocks/template:Template` with its skin-aware implementation through `config.yaml`. It resolves
@@ -86,3 +141,31 @@ The dedicated integration subpaths avoid circular facade loading.
 
 The base configuration also seeds an empty `skin` object before dependent skin packages are merged. This lets
 `@itrocks/config` rebase their nested `./...` target paths against the declaring package.
+
+## Compatibility
+
+The release is validated against the package's current runtime stack:
+
+| Component | Supported | Validated |
+|-----------|-----------|-----------|
+| Node.js | `>=24` | 24.19.0 |
+| TypeScript | `^7.0` | 7.0.2 |
+| Fastify | 5.x | 5.12.0 through `@itrocks/fastify` 0.2.7 |
+| Template engine | current `@itrocks/template` | 0.2.3 |
+
+## Development
+
+Run the complete resolver, template, HTTP, merged-configuration, and bootstrap suite:
+
+```bash
+npm test
+```
+
+Inspect the publication allow-list before publishing:
+
+```bash
+npm pack --dry-run --json
+```
+
+The archive contains `config.yaml`, the README, license, compiled JavaScript, and declarations. TypeScript sources,
+tests, source maps, examples, documentation sources, and caches are excluded.

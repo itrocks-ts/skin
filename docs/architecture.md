@@ -1,4 +1,4 @@
-# Architecture proposée
+# Architecture livrée
 
 ## Périmètre d’exécution
 
@@ -103,17 +103,17 @@ est normalisée pour la comparaison, sans renommer le fichier physique.
 
 ## Intégration HTML
 
-`SkinTemplate` surchargera `parseFile()` et résoudra le fichier demandé ainsi que le container avant de déléguer à
+`SkinTemplate` surcharge `parseFile()` et résout le fichier demandé ainsi que le container avant de déléguer à
 `Template`. Les includes créent une instance de la même classe composée : ils passent donc eux aussi par le résolveur.
 
-Le contexte des chemins relatifs sera celui du gabarit de remplacement. Une règle de package qui conserve
+Le contexte des chemins relatifs est celui du gabarit de remplacement. Une règle de package qui conserve
 l’arborescence permet aux includes relatifs équivalents de continuer à fonctionner dans le skin. Un gabarit remplacé
 peut aussi réutiliser explicitement un original par un include absolu `/@itrocks/...`.
 
 ## Intégration CSS et images
 
-`SkinFastifyServer` surchargera `httpCall()` uniquement pour les requêtes `.css`, `.jpg` et `.png`. Il traduira la cible
-physique en chemin statique it.rocks, puis déléguera à `FastifyServer`. Les types MIME, statuts et erreurs resteront
+`SkinFastifyServer` surcharge `httpCall()` uniquement pour les requêtes `.css`, `.jpg` et `.png`. Il traduit la cible
+physique en chemin statique it.rocks, puis délègue à `FastifyServer`. Les types MIME, statuts et erreurs restent
 ainsi gérés par le serveur existant.
 
 Sous une règle de package, une URL d’image relative à un CSS continue de fonctionner : le navigateur demande l’URL
@@ -136,6 +136,16 @@ séparation évite que `@itrocks/compose` charge la façade complète pendant qu
 
 La composition est recommandée. Si un hook devient nécessaire, la plus petite évolution acceptable serait un
 `resolveAssetPath` optionnel dans `FastifyConfig`; aucune logique de skin n’entrerait dans `@itrocks/fastify`.
+
+## Validation et diagnostic
+
+La validation retourne toutes les anomalies dans un ordre déterministe. Chaque anomalie expose un code stable, la
+règle concernée et un message indiquant la source ou la cible à corriger. Une règle de package est validée contre tous
+les artefacts finaux admissibles avant le trafic utile.
+
+Le diagnostic reste désactivé par défaut. `skinDiagnostics: true` active, dans les deux intégrations composées, une
+trace `debug` pour chaque résolution admissible. L’API du résolveur accepte aussi un callback `diagnostic` afin qu’une
+application collecte les mêmes événements structurés sans dépendre de la console.
 
 ## Invariants
 

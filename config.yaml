@@ -3,3 +3,4 @@ compose:
   '@itrocks/template:Template':     '@itrocks/skin/template:SkinTemplate'
 
 skin: {}
+skinDiagnostics: false

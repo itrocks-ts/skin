@@ -4,8 +4,8 @@ Ce document est l’index des spécifications du package. Il constitue la source
 leurs preuves de validation.
 
 Dernière mise à jour : 2026-08-19<br>
-État actuel : **résolution et remplacements HTML, CSS et images terminés et validés**<br>
-Prochaine action : **stabiliser, documenter et valider le package avec SKIN-S040**
+État actuel : **package stabilisé, documenté et validé**<br>
+Prochaine action : **aucune spécification ouverte**
 
 ## Objectif
 
@@ -16,9 +16,9 @@ par `@itrocks/config`.
 Le package agit uniquement sur les fichiers finaux utilisés à l’exécution. Les sources sous `src/`, les SCSS et les
 autres fichiers de développement sont hors périmètre.
 
-## Approche proposée
+## Approche livrée
 
-L’[architecture proposée](architecture.md) s’appuie sur les points de composition déjà présents :
+L’[architecture livrée](architecture.md) s’appuie sur les points de composition déjà présents :
 
 1. un résolveur transforme le chemin d’un artefact publié en chemin de remplacement ;
 2. `SkinTemplate extends Template` résout les gabarits HTML finaux avant leur lecture ;
@@ -44,7 +44,7 @@ surcharge de `httpCall()` ne peut pas préserver son comportement.
 | 0010  | [SKIN-S010 — Résolution]    | —               | `done`  | 0         |
 | 0020  | [SKIN-S020 — HTML]          | SKIN-S010       | `done`  | 0         |
 | 0030  | [SKIN-S030 — CSS et images] | SKIN-S010       | `done`  | 0         |
-| 0040  | [SKIN-S040 — Stabilisation] | SKIN-S020, S030 | `ready` | 0         |
+| 0040  | [SKIN-S040 — Stabilisation] | SKIN-S020, S030 | `done`  | 0         |
 
 ## Preuves de validation
 
@@ -73,6 +73,17 @@ surcharge de `httpCall()` ne peut pas préserver son comportement.
 - refus validé pour SCSS, JavaScript, TypeScript, SVG et WOFF2, avec comparaison au comportement natif de Fastify ;
 - cible installée dans un autre package `@itrocks` validée sans modification de `@itrocks/fastify`.
 
+### SKIN-S040 — Stabilisation
+
+- `npm test` : 29 tests réussis, avec configuration fusionnée d’un package de skin autonome et d’une surcharge exacte
+  applicative, validation du skin complet, rendu HTML et composition du bootstrap ;
+- exemples fournis pour une application minimale et un package de skin autonome ;
+- diagnostic désactivé par défaut, activable par configuration ou callback structuré ;
+- compatibilité validée avec Node.js 24.19.0, TypeScript 7.0.2, Fastify 5.12.0, `@itrocks/fastify` 0.2.7 et
+  `@itrocks/template` 0.2.3 ;
+- `npm pack --dry-run --json` : seuls la configuration, la documentation utilisateur, la licence, le JavaScript
+  compilé et les déclarations sont publiés ; sources, tests, maps, exemples et caches sont absents.
+
 [SKIN-S010 — Résolution]: specifications/010-resolution.md
 [SKIN-S020 — HTML]: specifications/020-remplacement-html.md
 [SKIN-S030 — CSS et images]: specifications/030-service-css-et-images.md
@@ -87,7 +98,7 @@ SKIN-S010 Résolveur
     └── SKIN-S040 Stabilisation
 ```
 
-SKIN-S020 et SKIN-S030 ont été développées séparément après SKIN-S010. SKIN-S040 peut maintenant stabiliser et valider
+SKIN-S020 et SKIN-S030 ont été développées séparément après SKIN-S010. SKIN-S040 a ensuite stabilisé et validé
 l’ensemble des intégrations.
 
 ## Décisions retenues

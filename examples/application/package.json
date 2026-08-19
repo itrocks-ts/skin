@@ -1,0 +1,9 @@
+{
+	"dependencies": {
+		"@demo/blue-skin": "latest",
+		"@itrocks/framework": "latest",
+		"@itrocks/home": "latest",
+		"@itrocks/skin": "latest"
+	},
+	"private": true
+}

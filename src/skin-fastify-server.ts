@@ -1,16 +1,13 @@
-import { appDir }           from '@itrocks/app-dir'
-import { config }           from '@itrocks/config'
-import { FastifyServer }    from '@itrocks/fastify'
-import { existsSync }       from 'node:fs'
-import { extname }          from 'node:path'
-import { isAbsolute }       from 'node:path'
-import { normalize }        from 'node:path'
-import { relative }         from 'node:path'
-import { resolve }          from 'node:path'
-import { sep }              from 'node:path'
-import { SkinConfig }       from './config'
-import { SkinResolver }     from './skin-resolver'
-import { SkinResourceKind } from './skin-resolver'
+import { FastifyServer }       from '@itrocks/fastify'
+import { existsSync }          from 'node:fs'
+import { extname }             from 'node:path'
+import { isAbsolute }          from 'node:path'
+import { normalize }           from 'node:path'
+import { relative }            from 'node:path'
+import { resolve }             from 'node:path'
+import { sep }                 from 'node:path'
+import { runtimeSkinResolver } from './runtime-resolver'
+import { SkinResourceKind }    from './skin-resolver'
 
 type FastifyOriginRequest = Parameters<FastifyServer['httpCall']>[0]
 type FastifyFinalResponse = Parameters<FastifyServer['httpCall']>[1]
@@ -61,7 +58,7 @@ export class SkinFastifyServer extends FastifyServer
 		const kind          = this.resourceKind(requestedPath)
 		if (!kind || requestedPath.includes('./')) return super.httpCall(originRequest, finalResponse)
 
-		const resolver = new SkinResolver((config.skin ?? {}) as SkinConfig, appDir)
+		const resolver = runtimeSkinResolver()
 		const source   = this.assetFile(requestedPath)
 		if (!existsSync(source)) return super.httpCall(originRequest, finalResponse)
 		if (resolver.isTarget(source)) return super.httpCall(originRequest, finalResponse)

@@ -1,0 +1,12 @@
+{
+	"dependencies": {
+		"@itrocks/home": "latest",
+		"@itrocks/skin": "latest"
+	},
+	"files": [
+		"config.yaml",
+		"content"
+	],
+	"name": "@demo/blue-skin",
+	"version": "1.0.0"
+}

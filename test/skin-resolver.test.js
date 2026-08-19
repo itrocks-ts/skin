@@ -145,6 +145,29 @@ test('preserves a supported final artifact when no skin rule is configured', asy
 	})
 })
 
+test('emits structured diagnostics only when a callback is explicitly configured', async context => {
+	const app      = fixture(context)
+	const original = app.file('cjs/feed.html')
+	const target   = app.target('skin/feed.html')
+	const events   = []
+	const resolver = new SkinResolver(
+		{ '@demo/content/feed.html': '/skin/feed.html' },
+		app.appDir,
+		{ diagnostic: event => events.push(event) }
+	)
+
+	resolver.resolve(original, 'template')
+
+	assert.deepEqual(events, [{
+		found: true,
+		kind: 'template',
+		logical: '@demo/content/cjs/feed.html',
+		original,
+		replacement: target
+	}])
+	assert.doesNotThrow(() => new SkinResolver({}, app.appDir).resolve(original, 'template'))
+})
+
 test('requires a complete path when a build-directory alias is ambiguous', async context => {
 	const app = fixture(context)
 	app.file('cjs/feed.html')

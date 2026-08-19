@@ -1,8 +1,6 @@
-import { appDir }       from '@itrocks/app-dir'
-import { config }       from '@itrocks/config'
-import { Template }     from '@itrocks/template'
-import { SkinConfig }   from './config'
-import { SkinResolver } from './skin-resolver'
+import { Template }            from '@itrocks/template'
+import { runtimeSkinResolver } from './runtime-resolver'
+import { SkinResolver }        from './skin-resolver'
 
 /** Resolves final HTML templates before delegating their parsing to the template engine. */
 export class SkinTemplate extends Template
@@ -17,7 +15,7 @@ export class SkinTemplate extends Template
 
 	override async parseFile(fileName: string, containerFileName?: string | false): Promise<string>
 	{
-		const resolver  = new SkinResolver((config.skin ?? {}) as SkinConfig, appDir)
+		const resolver  = runtimeSkinResolver()
 		const template  = this.resolveTemplate(fileName, resolver)
 		const container = (typeof containerFileName === 'string')
 			? this.resolveTemplate(containerFileName, resolver)
