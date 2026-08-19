@@ -106,4 +106,5 @@ Les noms définitifs pourront être ajustés, mais la séparation entre résolut
 **Recommandation :** option 1. Une règle de package signifie que son arborescence finale est remplacée. Le remplacement
 partiel reste explicite grâce aux règles de fichier.
 
-**Décision :** À définir.
+**Décision :** option 1. Une règle de package est stricte. Sa validation exige la présence de chaque artefact
+admissible sous la cible, tandis qu’une règle de fichier permet un remplacement partiel explicite.

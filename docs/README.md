@@ -4,8 +4,8 @@ Ce document est l’index des spécifications du package. Il constitue la source
 leurs preuves de validation.
 
 Dernière mise à jour : 2026-08-19<br>
-État actuel : **squelette créé, architecture à valider**<br>
-Prochaine spécification recommandée : **SKIN-S010 — Résolution des artefacts finaux**
+État actuel : **résolveur déterministe terminé et validé**<br>
+Prochaine action : **statuer sur les questions de SKIN-S020 et SKIN-S030 avant leur développement**
 
 ## Objectif
 
@@ -41,10 +41,20 @@ surcharge de `httpCall()` ne peut pas préserver son comportement.
 
 | Ordre | Spécification               | Dépendances     | Statut  | Questions |
 |------:|-----------------------------|-----------------|---------|----------:|
-| 0010  | [SKIN-S010 — Résolution]    | —               | `draft` | 1         |
+| 0010  | [SKIN-S010 — Résolution]    | —               | `done`  | 0         |
 | 0020  | [SKIN-S020 — HTML]          | SKIN-S010       | `draft` | 1         |
 | 0030  | [SKIN-S030 — CSS et images] | SKIN-S010       | `draft` | 1         |
 | 0040  | [SKIN-S040 — Stabilisation] | SKIN-S020, S030 | `ready` | 0         |
+
+## Preuves de validation
+
+### SKIN-S010 — Résolution
+
+- `npm test` : 15 tests réussis sur les alias, priorités, extensions, racines, traversées et liens symboliques ;
+- test de situation réelle : l’alias `@itrocks/list/feed.html` résout le fichier final voisin
+  `@itrocks/list/cjs/feed.html` vers un remplacement installé dans `@itrocks/home` ;
+- `npm pack --dry-run --json` : l’archive contient la façade, le résolveur JavaScript et ses déclarations, sans les
+  sources, tests ni source maps.
 
 [SKIN-S010 — Résolution]: specifications/010-resolution.md
 [SKIN-S020 — HTML]: specifications/020-remplacement-html.md

@@ -10,9 +10,10 @@ Enables it.rocks applications to be skinned with custom templates, styles, and i
 
 ## Bootstrap status
 
-This repository currently contains the package skeleton and no-op integration classes. Installing it preserves the
-original template and asset behaviour. The proposed replacement contract and implementation plan are documented in
-[the development plan](docs/README.md).
+The deterministic resolver is available and validates file-specific and package-wide skin rules. The template and
+Fastify integration classes remain no-op composition points until their dedicated implementation steps are complete,
+so installing this package alone still preserves the original template and asset behaviour. The remaining work is
+tracked in [the development plan](docs/README.md).
 
 ## Installation
 
@@ -20,10 +21,9 @@ original template and asset behaviour. The proposed replacement contract and imp
 npm i @itrocks/skin
 ```
 
-Once the planned specifications are implemented, applications will be able to declare package-wide and file-specific
-replacements. In an application built with `@itrocks/framework`, add the `skin` section to the application's
-`config.yaml` or to the `config.yaml` of a package that contributes a skin. The framework merges package and application
-configuration through `@itrocks/config`.
+Applications declare package-wide and file-specific replacements in the `skin` section of their `config.yaml`, or in
+the `config.yaml` of a package that contributes a skin. The framework merges package and application configuration
+through `@itrocks/config`.
 
 YAML keys beginning with `@` must be quoted:
 
@@ -38,6 +38,34 @@ SCSS sources are outside this package's responsibility.
 
 Paths beginning with `/` will be relative to the application root. Paths beginning with `./` will keep the existing
 `@itrocks/config` behaviour and be resolved relative to the package that declares them.
+
+## Resolver
+
+Create the resolver from the merged `skin` configuration, validate it once during bootstrap, then resolve final files
+before reading or serving them:
+
+```ts
+import { appDir }       from '@itrocks/app-dir'
+import { config }       from '@itrocks/config'
+import { SkinResolver } from '@itrocks/skin'
+
+const resolver   = new SkinResolver(config.skin ?? {}, appDir)
+const validation = await resolver.validate()
+
+if (!validation.valid) {
+	throw new Error(validation.issues.map(issue => issue.message).join('\n'))
+}
+
+const resolution = resolver.resolve(templateFile, 'template')
+const file        = resolution.replacement ?? resolution.original
+```
+
+`resolve()` accepts `template`, `style`, and `image` resources. It ignores files under `src/` and unsupported
+extensions. Exact published paths win over build-directory aliases, which win over package rules. Package rules are
+strict: validation fails when an eligible target artifact is missing, unless a file-specific rule overrides it.
+
+Targets and source rules containing traversal or mixed separators are rejected. Validation also resolves symbolic
+links and rejects any source or target that escapes its allowed package or application root.
 
 ## Integration
 
