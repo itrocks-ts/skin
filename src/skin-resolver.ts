@@ -360,6 +360,24 @@ export class SkinResolver
 		}
 	}
 
+	isTarget(file: string): boolean
+	{
+		if (!isAbsolute(file)) return false
+		const candidate = normalize(file)
+		for (const [source, target] of Object.entries(this.config)) {
+			try {
+				const rule       = this.parseRule(source, target)
+				const targetPath = this.targetPath(rule.target)
+				if (rule.resource ? (candidate === targetPath) : contains(targetPath, candidate)) return true
+			}
+			catch (error) {
+				if (error instanceof SkinResolutionError) continue
+				throw error
+			}
+		}
+		return false
+	}
+
 	private scanPackage(rule: SkinRule): string[]
 	{
 		const packageRoot = this.packageRoot(rule.packageName)

@@ -6,7 +6,7 @@ const { FastifyServer }                   = require('@itrocks/fastify')
 const { Template }                        = require('@itrocks/template')
 const { SkinFastifyServer, SkinTemplate } = require('../cjs/skin')
 
-test('exports no-op integration subclasses', () => {
+test('exports integration subclasses', () => {
 	assert.equal(Object.getPrototypeOf(SkinFastifyServer), FastifyServer)
 	assert.equal(Object.getPrototypeOf(SkinTemplate), Template)
 })

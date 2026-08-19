@@ -1,7 +1,28 @@
-import { Template } from '@itrocks/template'
+import { appDir }       from '@itrocks/app-dir'
+import { config }       from '@itrocks/config'
+import { Template }     from '@itrocks/template'
+import { SkinConfig }   from './config'
+import { SkinResolver } from './skin-resolver'
 
-/** Composition point for skin-aware HTML template resolution. */
+/** Resolves final HTML templates before delegating their parsing to the template engine. */
 export class SkinTemplate extends Template
 {
+
+	private resolveTemplate(file: string, resolver: SkinResolver): string
+	{
+		if (resolver.isTarget(file)) return file
+		const resolution = resolver.resolve(file, 'template')
+		return resolution.replacement ?? resolution.original
+	}
+
+	override async parseFile(fileName: string, containerFileName?: string | false): Promise<string>
+	{
+		const resolver  = new SkinResolver((config.skin ?? {}) as SkinConfig, appDir)
+		const template  = this.resolveTemplate(fileName, resolver)
+		const container = (typeof containerFileName === 'string')
+			? this.resolveTemplate(containerFileName, resolver)
+			: containerFileName
+		return super.parseFile(template, container)
+	}
 
 }

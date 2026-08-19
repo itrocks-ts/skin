@@ -4,8 +4,8 @@ Ce document est l’index des spécifications du package. Il constitue la source
 leurs preuves de validation.
 
 Dernière mise à jour : 2026-08-19<br>
-État actuel : **résolveur déterministe terminé et validé**<br>
-Prochaine action : **statuer sur les questions de SKIN-S020 et SKIN-S030 avant leur développement**
+État actuel : **résolution et remplacement HTML terminés et validés**<br>
+Prochaine action : **statuer sur SKIN-S030-Q1 avant le service des CSS et images**
 
 ## Objectif
 
@@ -42,7 +42,7 @@ surcharge de `httpCall()` ne peut pas préserver son comportement.
 | Ordre | Spécification               | Dépendances     | Statut  | Questions |
 |------:|-----------------------------|-----------------|---------|----------:|
 | 0010  | [SKIN-S010 — Résolution]    | —               | `done`  | 0         |
-| 0020  | [SKIN-S020 — HTML]          | SKIN-S010       | `draft` | 1         |
+| 0020  | [SKIN-S020 — HTML]          | SKIN-S010       | `done`  | 0         |
 | 0030  | [SKIN-S030 — CSS et images] | SKIN-S010       | `draft` | 1         |
 | 0040  | [SKIN-S040 — Stabilisation] | SKIN-S020, S030 | `ready` | 0         |
 
@@ -55,6 +55,14 @@ surcharge de `httpCall()` ne peut pas préserver son comportement.
   `@itrocks/list/cjs/feed.html` vers un remplacement installé dans `@itrocks/home` ;
 - `npm pack --dry-run --json` : l’archive contient la façade, le résolveur JavaScript et ses déclarations, sans les
   sources, tests ni source maps.
+
+### SKIN-S020 — HTML
+
+- `npm test` : 20 tests réussis au total, dont 5 tests d’intégration de `SkinTemplate` ;
+- remplacements exacts validés à la racine, sous `cjs/`, sous `html/` et dans un sous-dossier ;
+- règle de package validée sur une action, son container, un include relatif et la collecte de sa dépendance de head ;
+- non-régression validée pour les sources sous `src/` et pour une cible installée dans `node_modules` sans substitution
+  en chaîne.
 
 [SKIN-S010 — Résolution]: specifications/010-resolution.md
 [SKIN-S020 — HTML]: specifications/020-remplacement-html.md

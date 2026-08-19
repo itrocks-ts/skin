@@ -68,4 +68,5 @@ les routes, le framework ou le package propriétaire du gabarit.
 **Recommandation :** option 1, qui respecte le comportement natif de `Template`. La conservation de l’arborescence par
 une règle de package permet de recopier les mêmes includes relatifs ; un original reste accessible par chemin absolu.
 
-**Décision :** À définir.
+**Décision :** option 1. Les chemins relatifs sont résolus depuis le dossier du gabarit de remplacement, conformément
+au comportement natif de `Template`.
