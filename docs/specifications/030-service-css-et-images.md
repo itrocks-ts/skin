@@ -73,4 +73,5 @@ publique, leur type MIME et le pipeline statique de `@itrocks/fastify`.
 **Recommandation :** option 1. Elle n’impose aucun changement de package. L’option 2 reste le repli si les tests
 montrent que la délégation ne préserve pas tous les comportements.
 
-**Décision :** À définir.
+**Décision :** option 1. `SkinFastifyServer` traduit le chemin physique de remplacement en chemin statique it.rocks,
+puis délègue à `FastifyServer.httpCall()`. Aucun changement de `@itrocks/fastify` n’est nécessaire.

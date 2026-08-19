@@ -10,10 +10,10 @@ Enables it.rocks applications to be skinned with custom templates, styles, and i
 
 ## Status
 
-The deterministic resolver validates file-specific and package-wide skin rules. Final HTML templates are transparently
-resolved through the composed `SkinTemplate`, including action templates, containers, and relative includes. The
-Fastify integration remains a no-op composition point until CSS and image serving is implemented. The remaining work
-is tracked in [the development plan](docs/README.md).
+The deterministic resolver validates file-specific and package-wide skin rules. The composed runtime integrations
+transparently replace final HTML templates, CSS stylesheets, and JPG or PNG images while preserving their public paths
+and native template or HTTP handling. The remaining stabilization work is tracked in
+[the development plan](docs/README.md).
 
 ## Installation
 
@@ -67,15 +67,22 @@ strict: validation fails when an eligible target artifact is missing, unless a f
 Targets and source rules containing traversal or mixed separators are rejected. Validation also resolves symbolic
 links and rejects any source or target that escapes its allowed package or application root.
 
-## Template integration
+## Runtime integration
 
 The package composes `@itrocks/template:Template` with its skin-aware implementation through `config.yaml`. It resolves
 the requested final template and optional container, then delegates parsing unchanged to `Template`. Includes inherit
 the composed class, relative includes use the replacement directory, and collected head dependencies keep the native
 template-engine behaviour.
 
-`@itrocks/fastify:FastifyServer` is also composed through the dedicated `@itrocks/skin/fastify` subpath, but remains a
-no-op until the CSS and image integration step. The dedicated subpaths avoid circular facade loading.
+The composed `SkinFastifyServer` intercepts only final `.css`, `.jpg`, and `.png` requests. It resolves their physical
+replacement, translates it back to an it.rocks static path, and delegates the response to Fastify. Public URLs, MIME
+types, caching statuses, missing-file responses, and unconfigured assets therefore retain the native server behaviour.
+
+Package rules preserve the complete published path, including images referenced relative to a replaced CSS file. An
+exact CSS rule does not infer image replacements; each image needs its own exact rule. SCSS, JavaScript, TypeScript,
+SVG, WOFF2, and front-script discovery remain untouched.
+
+The dedicated integration subpaths avoid circular facade loading.
 
 The base configuration also seeds an empty `skin` object before dependent skin packages are merged. This lets
 `@itrocks/config` rebase their nested `./...` target paths against the declaring package.
