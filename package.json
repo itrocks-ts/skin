@@ -28,20 +28,21 @@
 		"LICENSE",
 		"README.md",
 		"cjs",
-		"docs",
 		"!*.map"
 	],
 	"homepage": "https://it.rocks",
 	"keywords": [
 		"assets",
+		"css",
 		"backend",
-		"CSS",
-		"HTML",
+		"html",
 		"images",
 		"it.rocks",
 		"skin",
 		"templates",
-		"theming"
+		"theming",
+		"UI",
+		"UX"
 	],
 	"license": "ISC",
 	"name": "@itrocks/skin",
