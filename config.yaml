@@ -1,0 +1,5 @@
+compose:
+  '@itrocks/fastify:FastifyServer': '@itrocks/skin/fastify:SkinFastifyServer'
+  '@itrocks/template:Template':     '@itrocks/skin/template:SkinTemplate'
+
+skin: {}

@@ -1,0 +1,57 @@
+{
+	"author": {
+		"name": "Baptiste Pillot",
+		"email": "baptiste@pillot.fr"
+	},
+	"dependencies": {
+		"@itrocks/app-dir": "latest",
+		"@itrocks/config": "latest",
+		"@itrocks/fastify": "latest",
+		"@itrocks/template": "latest"
+	},
+	"description": "Enables it.rocks applications to be skinned with custom templates, styles, and images",
+	"devDependencies": {
+		"@itrocks/compose": "latest",
+		"@types/node": "^24.10",
+		"typescript": "^7.0"
+	},
+	"engines": {
+		"node": ">=24"
+	},
+	"exports": {
+		".": "./cjs/skin.js",
+		"./fastify": "./cjs/skin-fastify-server.js",
+		"./template": "./cjs/skin-template.js"
+	},
+	"files": [
+		"config.yaml",
+		"LICENSE",
+		"README.md",
+		"cjs",
+		"docs",
+		"!*.map"
+	],
+	"homepage": "https://it.rocks",
+	"keywords": [
+		"assets",
+		"backend",
+		"CSS",
+		"HTML",
+		"images",
+		"it.rocks",
+		"skin",
+		"templates",
+		"theming"
+	],
+	"license": "ISC",
+	"name": "@itrocks/skin",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/itrocks-ts/skin.git"
+	},
+	"scripts": {
+		"build": "tsc",
+		"test": "npm run build && node --test --test-isolation=none test/*.test.js"
+	},
+	"version": "0.0.1"
+}
