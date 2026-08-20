@@ -6,6 +6,7 @@ const test   = require('node:test')
 
 const appDirModule     = require('@itrocks/app-dir')
 const { config }       = require('@itrocks/config')
+const skinPackage      = require('../cjs/skin')
 const { SkinResolver } = require('../cjs/skin-resolver')
 const { SkinTemplate } = require('../cjs/skin-template')
 
@@ -18,17 +19,19 @@ function createFile(file, content)
 
 function fixture(context, packageName = '@demo/content')
 {
-	const application    = fs.mkdtempSync(path.join(os.tmpdir(), 'itrocks-skin-template-'))
-	const packageRoot    = path.join(application, 'node_modules', ...packageName.split('/'))
-	const previousAppDir = appDirModule.appDir
-	const previousSkin   = config.skin
-	const previousDebug  = config.skinDiagnostics
+	const application           = fs.mkdtempSync(path.join(os.tmpdir(), 'itrocks-skin-template-'))
+	const packageRoot           = path.join(application, 'node_modules', ...packageName.split('/'))
+	const previousAppDir        = appDirModule.appDir
+	const previousSkin          = config.skin
+	const previousDebug         = config.skinDiagnostics
+	const previousExportedDebug = skinPackage.debug
 	createFile(path.join(packageRoot, 'package.json'), JSON.stringify({ name: packageName }))
 	appDirModule.appDir = application
 	context.after(() => {
 		appDirModule.appDir    = previousAppDir
 		config.skin            = previousSkin
 		config.skinDiagnostics = previousDebug
+		skinPackage.setDebug(previousExportedDebug)
 		fs.rmSync(application, { force: true, recursive: true })
 	})
 	return {
@@ -97,7 +100,7 @@ test('preserves native template rendering when no skin is configured', async con
 	assert.equal(await new SkinTemplate({ message: 'ORIGINAL' }).parseFile(original), '<p>ORIGINAL</p>')
 })
 
-test('writes runtime diagnostics only when explicitly enabled', async context => {
+test('writes detailed runtime diagnostics only when explicitly enabled', async context => {
 	const app      = fixture(context)
 	const original = app.original('cjs/page.html', '<p>ORIGINAL</p>')
 	const target   = app.skin('skin/page.html', '<p>SKIN</p>')
@@ -113,7 +116,46 @@ test('writes runtime diagnostics only when explicitly enabled', async context =>
 
 	config.skinDiagnostics = true
 	await new SkinTemplate().parseFile(original)
-	assert.deepEqual(entries, [`[skin] template @demo/content/cjs/page.html: replaced by ${target}`])
+	assert.deepEqual(entries, [
+		`[skin] template resource replacement\n`
+		+ `  original: ${original}\n`
+		+ `  rule: @demo/content/page.html -> /skin/page.html\n`
+		+ `  candidates:\n`
+		+ `    - ${target}\n`
+		+ `  final: ${target}`
+	])
+
+	entries.length = 0
+	config.skinDiagnostics = false
+	assert.equal(skinPackage.debug, false)
+	skinPackage.setDebug(true)
+	assert.equal(skinPackage.debug, true)
+	await new SkinTemplate().parseFile(original)
+	assert.equal(entries.length, 1)
+})
+
+test('reports every namespace candidate and the original fallback in debug mode', async context => {
+	const app      = fixture(context)
+	const original = app.original('cjs/page.html', '<p>ORIGINAL</p>')
+	const entries  = []
+	const previous = console.debug
+	app.skin('skin/.keep', '')
+	config.skin = { '@demo': '/skin' }
+	config.skinDiagnostics = false
+	skinPackage.setDebug(true)
+	console.debug = entry => entries.push(entry)
+	context.after(() => { console.debug = previous })
+
+	assert.equal(await new SkinTemplate().parseFile(original), '<p>ORIGINAL</p>')
+	assert.deepEqual(entries, [
+		`[skin] template resource replacement\n`
+		+ `  original: ${original}\n`
+		+ `  rule: @demo -> /skin\n`
+		+ `  candidates:\n`
+		+ `    - ${path.join(app.application, 'skin/@demo/content/cjs/page.html')}\n`
+		+ `    - ${path.join(app.application, 'skin/content/cjs/page.html')}\n`
+		+ `  final: ${original} (original; no replacement found)`
+	])
 })
 
 test('does not feed a replacement in node_modules back into another skin rule', async context => {

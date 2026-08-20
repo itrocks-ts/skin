@@ -36,7 +36,7 @@ skin:
   '@itrocks/list/feed.html': /app/list/my-feed.html
 ```
 
-Les guillemets autour des clés sont obligatoires en YAML lorsqu’elles commencent par `@`.
+Les guillemets autour des clés et valeurs sont obligatoires en YAML lorsqu’elles commencent par `@`.
 
 Une cible commençant par `/` est relative à la racine applicative. Une cible commençant par `./` est résolue par
 `@itrocks/config` relativement au package qui la déclare :
@@ -52,7 +52,8 @@ leur configuration est alors fusionnée dans cet objet existant et les cibles `.
 ## Règle de package : conserver l’arborescence publiée
 
 Une clé limitée au nom du package remplace tous ses artefacts admissibles. Le chemin relatif au package source est
-conservé tel quel sous le dossier cible.
+conservé tel quel sous le dossier cible. Le remplacement est partiel : si ce chemin n’existe pas dans la cible, le
+résolveur conserve la ressource d’origine sans erreur.
 
 | Artefact final source                            | Cible pour `@itrocks/home: /app/home` |
 |--------------------------------------------------|----------------------------------------|
@@ -64,6 +65,17 @@ conservé tel quel sous le dossier cible.
 
 Cette règle ne suppose pas un dossier de build unique. La racine, `cjs/`, `html/`, `css/` et les autres
 sous-dossiers publiés restent visibles dans le chemin de remplacement.
+
+## Règle de namespace
+
+Une clé limitée à un namespace, par exemple `@itrocks`, s’applique après les règles exactes, les alias et les règles de
+package. Pour `@itrocks/home/cjs/page.html`, elle cherche sous sa cible, dans cet ordre :
+
+1. `@itrocks/home/cjs/page.html` ;
+2. `home/cjs/page.html`.
+
+La cible peut être un dossier de l’application (`/app/skin`), un package installé (`@my/skin`) ou un dossier de
+namespace installé (`@myappnamespace`). L’absence des deux candidats conserve le fichier source sans erreur.
 
 ## Règle de fichier : forme complète et raccourcis
 
@@ -95,8 +107,10 @@ Le résolveur applique les règles suivantes :
 3. chercher une règle exacte sur le chemin complet ;
 4. chercher, pour un HTML ou un CSS, son éventuel alias sans dossier de build ;
 5. chercher une règle de package ;
-6. pour une règle de package, joindre la cible et le chemin relatif réel sans le transformer ;
-7. effectuer une seule substitution et refuser toute traversée de dossier.
+6. chercher une règle de namespace ;
+7. construire les chemins candidats dans leur ordre documenté et prendre le premier fichier existant ;
+8. conserver l’original si aucun candidat d’une règle de dossier n’existe ;
+9. effectuer une seule substitution et refuser toute traversée de dossier.
 
 Les seules extensions admises dans la première version sont `.html`, `.css`, `.jpg` et `.png`. La casse de l’extension
 est normalisée pour la comparaison, sans renommer le fichier physique.
@@ -140,17 +154,20 @@ La composition est recommandée. Si un hook devient nécessaire, la plus petite 
 ## Validation et diagnostic
 
 La validation retourne toutes les anomalies dans un ordre déterministe. Chaque anomalie expose un code stable, la
-règle concernée et un message indiquant la source ou la cible à corriger. Une règle de package est validée contre tous
-les artefacts finaux admissibles avant le trafic utile.
+règle concernée et un message indiquant la source ou la cible à corriger. Pour une règle de dossier, elle valide
+l’existence et la sécurité des racines source et cible ; l’absence d’un artefact particulier active le fallback.
 
-Le diagnostic reste désactivé par défaut. `skinDiagnostics: true` active, dans les deux intégrations composées, une
-trace `debug` pour chaque résolution admissible. L’API du résolveur accepte aussi un callback `diagnostic` afin qu’une
-application collecte les mêmes événements structurés sans dépendre de la console.
+Le diagnostic reste désactivé par défaut. L’export `debug`, modifié par `setDebug(true)`, ou la configuration historique
+`skinDiagnostics: true` active une trace détaillée dans les deux intégrations composées. Chaque recherche affiche le
+fichier original, la règle, tous les candidats et le fichier final, y compris le fallback original. L’API du résolveur
+accepte aussi un callback `diagnostic` afin de collecter les mêmes événements structurés sans dépendre de la console.
 
 ## Invariants
 
 - Une ressource non configurée conserve exactement son comportement actuel.
 - Une règle de package conserve le chemin relatif publié, dossiers de build compris.
+- Une règle de namespace accepte les dispositions avec ou sans dossier du namespace source.
+- Une ressource absente d’une cible de dossier retombe silencieusement sur l’original.
 - Une règle de fichier exacte peut choisir librement son fichier cible.
 - Le remplacement ne change pas l’URL publique de la ressource.
 - Les sources, SCSS, JavaScript, TypeScript et extensions non admises ne sont jamais remplacés.

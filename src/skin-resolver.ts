@@ -1,16 +1,16 @@
-import { Dirent }       from 'node:fs'
-import { existsSync }   from 'node:fs'
-import { readdirSync }  from 'node:fs'
-import { realpathSync } from 'node:fs'
-import { statSync }     from 'node:fs'
-import { extname }      from 'node:path'
-import { isAbsolute }   from 'node:path'
-import { join }         from 'node:path'
-import { normalize }    from 'node:path'
-import { relative }     from 'node:path'
-import { resolve }      from 'node:path'
-import { sep }          from 'node:path'
-import { SkinConfig }   from './config'
+import { existsSync }         from 'node:fs'
+import { realpathSync }       from 'node:fs'
+import { statSync }           from 'node:fs'
+import { extname }            from 'node:path'
+import { isAbsolute }         from 'node:path'
+import { join }               from 'node:path'
+import { normalize }          from 'node:path'
+import { relative }           from 'node:path'
+import { resolve }            from 'node:path'
+import { sep }                from 'node:path'
+import { SkinConfig }         from './config'
+import { debug }              from './debug'
+import { logSkinResolution }  from './debug'
 
 export type SkinResourceKind = 'image' | 'style' | 'template'
 
@@ -21,8 +21,16 @@ export type SkinResolution = {
 	replacement?: string
 }
 
+export type SkinReplacementRule = {
+	source: string
+	target: string
+}
+
 export type SkinDiagnosticEvent = SkinResolution & {
-	kind: SkinResourceKind
+	candidates: string[]
+	final:       string
+	kind:        SkinResourceKind
+	rule?:       SkinReplacementRule
 }
 
 export type SkinResolverOptions = {
@@ -55,7 +63,8 @@ export type SkinValidationResult = {
 }
 
 type SkinRule = {
-	packageName: string
+	namespace?:  string
+	packageName?: string
 	resource?:   string
 	source:      string
 	target:      string
@@ -64,9 +73,22 @@ type SkinRule = {
 type SourceResource = {
 	kind:        SkinResourceKind
 	logical:     string
+	namespace?:  string
 	packageName: string
 	packageRoot: string
 	relative:    string
+}
+
+type TargetRoot = {
+	path: string
+	real: string
+}
+
+type ReplacementSearch = {
+	candidates: string[]
+	exact:      boolean
+	rule:       SkinReplacementRule
+	targetRoot: TargetRoot
 }
 
 const ALIAS_DIRECTORIES: Record<'style' | 'template', string[]> = {
@@ -112,6 +134,16 @@ function safeRulePath(path: string): boolean
 		&& !path.includes('\\')
 		&& !path.includes('\0')
 		&& pathSegments(path).every(segment => !!segment && (segment !== '.') && (segment !== '..'))
+}
+
+function safeTargetReference(path: string): boolean
+{
+	const segments = pathSegments(path)
+	return path.startsWith('@')
+		&& (segments.length <= 2)
+		&& !!segments[0].slice(1)
+		&& ((segments.length === 1) || !!segments[1])
+		&& safeRulePath(path)
 }
 
 export class SkinResolutionError extends Error
@@ -221,12 +253,16 @@ export class SkinResolver
 	{
 		if (
 			(typeof target !== 'string')
-			|| !target.startsWith('/')
-			|| ((target !== '/') && !safeRulePath(target.slice(1)))
+			|| (
+				!target.startsWith('/')
+				&& !safeTargetReference(target)
+			)
+			|| (target.startsWith('/') && (target !== '/') && !safeRulePath(target.slice(1)))
 		) {
 			throw new SkinResolutionError(
 				'INVALID_TARGET',
-				`Skin rule ${source} must target a merged application path without traversal: ${String(target)}`,
+				`Skin rule ${source} must target an application path, installed package or package namespace without `
+				+ `traversal: ${String(target)}`,
 				source
 			)
 		}
@@ -238,12 +274,22 @@ export class SkinResolver
 			)
 		}
 		const segments = pathSegments(source)
+		if (source.startsWith('@') && (segments.length === 1) && !!segments[0].slice(1)) {
+			return { namespace: source, source, target }
+		}
 		const packageLength = source.startsWith('@') ? 2 : 1
 		if ((segments.length < packageLength) || (source.startsWith('@') && !segments[0].slice(1))) {
 			throw new SkinResolutionError('INVALID_RULE', `Invalid package name in skin rule: ${source}`, source)
 		}
 		const packageName = segments.slice(0, packageLength).join('/')
 		const resource    = segments.slice(packageLength).join('/') || undefined
+		if (resource && !target.startsWith('/')) {
+			throw new SkinResolutionError(
+				'INVALID_TARGET',
+				`File skin rule ${source} must target a merged application file path: ${target}`,
+				source
+			)
+		}
 		if (resource && !kindOf(resource)) {
 			throw new SkinResolutionError(
 				'UNSUPPORTED_RESOURCE',
@@ -274,6 +320,7 @@ export class SkinResolver
 		return {
 			kind,
 			logical: packageName + '/' + relativePath,
+			namespace: packageName.startsWith('@') ? packageName.split('/')[0] : undefined,
 			packageName,
 			packageRoot,
 			relative: relativePath
@@ -293,9 +340,51 @@ export class SkinResolver
 		return path
 	}
 
+	private targetRoot(rule: SkinRule): TargetRoot
+	{
+		const appRoot = realpathSync(this.appRoot)
+		if (rule.target.startsWith('/')) {
+			const path = this.targetPath(rule.target)
+			const real = this.assertRealPath(path, appRoot, rule.source, true)
+			if (statSync(real).isDirectory()) return { path, real }
+			throw new SkinResolutionError(
+				'TARGET_NOT_DIRECTORY',
+				`Skin rule ${rule.source} must target a directory: ${path}`,
+				rule.source
+			)
+		}
+		const path = join(this.modulesRoot, ...pathSegments(rule.target))
+		let real: string
+		try {
+			real = realpathSync(path)
+		}
+		catch {
+			throw new SkinResolutionError(
+				'TARGET_NOT_FOUND',
+				`Installed target does not exist for skin rule ${rule.source}: ${rule.target}`,
+				rule.source
+			)
+		}
+		if (!statSync(real).isDirectory()) {
+			throw new SkinResolutionError(
+				'TARGET_NOT_DIRECTORY',
+				`Skin rule ${rule.source} must target a directory: ${path}`,
+				rule.source
+			)
+		}
+		if ((pathSegments(rule.target).length === 2) && !existsSync(join(real, 'package.json'))) {
+			throw new SkinResolutionError(
+				'INVALID_TARGET',
+				`Installed target is not a package for skin rule ${rule.source}: ${rule.target}`,
+				rule.source
+			)
+		}
+		return { path, real }
+	}
+
 	private aliasCandidates(rule: SkinRule): string[]
 	{
-		if (!rule.resource) return []
+		if (!rule.resource || !rule.packageName) return []
 		const kind = kindOf(rule.resource)
 		if (!kind || (kind === 'image')) return []
 		const packageRoot = this.packageRoot(rule.packageName)
@@ -304,7 +393,20 @@ export class SkinResolver
 			.filter(resource => existsSync(join(packageRoot, ...pathSegments(resource))))
 	}
 
-	private replacement(source: SourceResource): { path: string, rule: string } | undefined
+	private folderSearch(rule: SkinRule, relativePaths: string[]): ReplacementSearch
+	{
+		const targetRoot = this.targetRoot(rule)
+		return {
+			candidates: relativePaths.map(relativePath =>
+				join(targetRoot.path, ...pathSegments(relativePath))
+			),
+			exact: false,
+			rule: { source: rule.source, target: rule.target },
+			targetRoot
+		}
+	}
+
+	private replacement(source: SourceResource): ReplacementSearch | undefined
 	{
 		const alias       = this.aliasOf(source.relative, source.kind)
 		const exactRule   = source.logical
@@ -312,16 +414,18 @@ export class SkinResolver
 		const packageRule = source.packageName
 		if (hasOwn(this.config, exactRule)) {
 			const rule = this.parseRule(exactRule, this.config[exactRule])
-			return { path: this.targetPath(rule.target), rule: exactRule }
+			return {
+				candidates: [this.targetPath(rule.target)],
+				exact: true,
+				rule: { source: rule.source, target: rule.target },
+				targetRoot: { path: this.appRoot, real: realpathSync(this.appRoot) }
+			}
 		}
 		if (aliasRule && hasOwn(this.config, aliasRule)) {
 			if (existsSync(join(source.packageRoot, ...pathSegments(alias!)))) {
 				if (!hasOwn(this.config, packageRule)) return
 				const packageSkin = this.parseRule(packageRule, this.config[packageRule])
-				return {
-					path: join(this.targetPath(packageSkin.target), ...pathSegments(source.relative)),
-					rule: packageRule
-				}
+				return this.folderSearch(packageSkin, [source.relative])
 			}
 			const rule       = this.parseRule(aliasRule, this.config[aliasRule])
 			const candidates = this.aliasCandidates(rule)
@@ -332,15 +436,24 @@ export class SkinResolver
 					aliasRule
 				)
 			}
-			return { path: this.targetPath(rule.target), rule: aliasRule }
+			return {
+				candidates: [this.targetPath(rule.target)],
+				exact: true,
+				rule: { source: rule.source, target: rule.target },
+				targetRoot: { path: this.appRoot, real: realpathSync(this.appRoot) }
+			}
 		}
 		if (hasOwn(this.config, packageRule)) {
-			const rule       = this.parseRule(packageRule, this.config[packageRule])
-			const targetRoot = this.targetPath(rule.target)
-			return {
-				path: join(targetRoot, ...pathSegments(source.relative)),
-				rule: packageRule
-			}
+			const rule = this.parseRule(packageRule, this.config[packageRule])
+			return this.folderSearch(rule, [source.relative])
+		}
+		if (source.namespace && hasOwn(this.config, source.namespace)) {
+			const rule        = this.parseRule(source.namespace, this.config[source.namespace])
+			const packageName = source.packageName.slice(source.namespace.length + 1)
+			return this.folderSearch(rule, [
+				source.namespace + '/' + packageName + '/' + source.relative,
+				packageName + '/' + source.relative
+			])
 		}
 	}
 
@@ -349,32 +462,35 @@ export class SkinResolver
 		const original = isAbsolute(file) ? normalize(file) : file
 		const source   = this.sourceResource(file, kind)
 		if (!source) return this.report({ found: false, logical: original, original }, kind)
-		const replacement = this.replacement(source)
-		if (!replacement) return this.report({ found: false, logical: source.logical, original }, kind)
-		const packageTarget = replacement.rule === source.packageName
-		const targetRoot    = packageTarget ? this.targetPath(this.config[replacement.rule]) : this.appRoot
-		const realTarget    = packageTarget
-			? this.assertRealPath(targetRoot, realpathSync(this.appRoot), replacement.rule, true)
-			: realpathSync(this.appRoot)
-		if (packageTarget && !statSync(realTarget).isDirectory()) {
-			throw new SkinResolutionError(
-				'TARGET_NOT_DIRECTORY',
-				`Package skin rule ${replacement.rule} must target a directory: ${targetRoot}`,
-				replacement.rule
-			)
+		const search = this.replacement(source)
+		if (!search) return this.report({ found: false, logical: source.logical, original }, kind)
+		const replacement = search.candidates.find(candidate => existsSync(candidate))
+		if (!replacement) {
+			if (search.exact) this.assertTargetFile(search.candidates[0], search.targetRoot.real, search.rule.source)
+			return this.report({ found: false, logical: source.logical, original }, kind, search)
 		}
-		this.assertTargetFile(replacement.path, realTarget, replacement.rule)
+		this.assertTargetFile(replacement, search.targetRoot.real, search.rule.source)
 		return this.report({
 			found: true,
 			logical: source.logical,
 			original,
-			replacement: replacement.path
-		}, kind)
+			replacement
+		}, kind, search)
 	}
 
-	private report(resolution: SkinResolution, kind: SkinResourceKind): SkinResolution
+	private report(
+		resolution: SkinResolution, kind: SkinResourceKind, search?: ReplacementSearch
+	): SkinResolution
 	{
-		this.options.diagnostic?.({ ...resolution, kind })
+		const event: SkinDiagnosticEvent = {
+			...resolution,
+			candidates: search?.candidates ?? [],
+			final: resolution.replacement ?? resolution.original,
+			kind,
+			rule: search?.rule
+		}
+		this.options.diagnostic?.(event)
+		if (debug && (this.options.diagnostic !== logSkinResolution)) logSkinResolution(event)
 		return resolution
 	}
 
@@ -384,9 +500,12 @@ export class SkinResolver
 		const candidate = normalize(file)
 		for (const [source, target] of Object.entries(this.config)) {
 			try {
-				const rule       = this.parseRule(source, target)
-				const targetPath = this.targetPath(rule.target)
-				if (rule.resource ? (candidate === targetPath) : contains(targetPath, candidate)) return true
+				const rule = this.parseRule(source, target)
+				if (rule.resource) {
+					if (candidate === this.targetPath(rule.target)) return true
+					continue
+				}
+				if (contains(this.targetRoot(rule).path, candidate)) return true
 			}
 			catch (error) {
 				if (error instanceof SkinResolutionError) continue
@@ -396,52 +515,10 @@ export class SkinResolver
 		return false
 	}
 
-	private scanPackage(rule: SkinRule): string[]
-	{
-		const packageRoot = this.packageRoot(rule.packageName)
-		const realRoot    = this.realPackageRoot(rule.packageName, rule.source)
-		const resources   = new Array<string>
-		const visited     = new Set<string>
-		const scan = (directory: string, relativeDirectory = '') => {
-			const realDirectory = this.assertRealPath(directory, realRoot, rule.source, false)
-			if (visited.has(realDirectory)) return
-			visited.add(realDirectory)
-			let entries: Dirent[]
-			try {
-				entries = readdirSync(directory, { withFileTypes: true })
-			}
-			catch {
-				throw new SkinResolutionError(
-					'UNREADABLE_SOURCE',
-					`Cannot read source package for skin rule ${rule.source}: ${directory}`,
-					rule.source
-				)
-			}
-			for (const entry of entries) {
-				const childRelative = relativeDirectory ? (relativeDirectory + '/' + entry.name) : entry.name
-				if (pathSegments(childRelative).includes('src') || pathSegments(childRelative).includes('node_modules')) {
-					continue
-				}
-				const child = join(directory, entry.name)
-				if (entry.isSymbolicLink()) {
-					const realChild = this.assertRealPath(child, realRoot, rule.source, false)
-					const status    = statSync(realChild)
-					if (status.isDirectory()) scan(child, childRelative)
-					else if (status.isFile() && kindOf(childRelative)) resources.push(childRelative)
-					continue
-				}
-				if (entry.isDirectory()) scan(child, childRelative)
-				else if (entry.isFile() && kindOf(childRelative)) resources.push(childRelative)
-			}
-		}
-		scan(packageRoot)
-		return resources.sort()
-	}
-
 	private validateExactRule(rule: SkinRule)
 	{
-		const packageRoot = this.packageRoot(rule.packageName)
-		const realRoot    = this.realPackageRoot(rule.packageName, rule.source)
+		const packageRoot = this.packageRoot(rule.packageName!)
+		const realRoot    = this.realPackageRoot(rule.packageName!, rule.source)
 		const exact = join(packageRoot, ...pathSegments(rule.resource!))
 		let source = existsSync(exact) ? exact : undefined
 		if (!source) {
@@ -473,32 +550,34 @@ export class SkinResolver
 		this.assertTargetFile(this.targetPath(rule.target), realpathSync(this.appRoot), rule.source)
 	}
 
-	private overridden(packageName: string, resource: string): boolean
-	{
-		const full = packageName + '/' + resource
-		if (hasOwn(this.config, full)) return true
-		const kind  = kindOf(resource)
-		const alias = kind && this.aliasOf(resource, kind)
-		return !!alias
-			&& !existsSync(join(this.packageRoot(packageName), ...pathSegments(alias)))
-			&& hasOwn(this.config, packageName + '/' + alias)
-	}
-
 	private validatePackageRule(rule: SkinRule)
 	{
-		const targetRoot = this.targetPath(rule.target)
-		const realTarget = this.assertRealPath(targetRoot, realpathSync(this.appRoot), rule.source, true)
-		if (!statSync(realTarget).isDirectory()) {
+		this.realPackageRoot(rule.packageName!, rule.source)
+		this.targetRoot(rule)
+	}
+
+	private validateNamespaceRule(rule: SkinRule)
+	{
+		const sourceRoot = join(this.modulesRoot, rule.namespace!)
+		let realSource: string
+		try {
+			realSource = realpathSync(sourceRoot)
+		}
+		catch {
 			throw new SkinResolutionError(
-				'TARGET_NOT_DIRECTORY',
-				`Package skin rule ${rule.source} must target a directory: ${targetRoot}`,
+				'SOURCE_NOT_FOUND',
+				`Package namespace does not exist for skin rule ${rule.source}: ${rule.namespace}`,
 				rule.source
 			)
 		}
-		for (const resource of this.scanPackage(rule)) {
-			if (this.overridden(rule.packageName, resource)) continue
-			this.assertTargetFile(join(targetRoot, ...pathSegments(resource)), realTarget, rule.source)
+		if (!statSync(realSource).isDirectory()) {
+			throw new SkinResolutionError(
+				'SOURCE_NOT_FOUND',
+				`Skin rule ${rule.source} does not identify a package namespace directory`,
+				rule.source
+			)
 		}
+		this.targetRoot(rule)
 	}
 
 	async validate(): Promise<SkinValidationResult>
@@ -508,7 +587,8 @@ export class SkinResolver
 			try {
 				const rule = this.parseRule(source, target)
 				if (rule.resource) this.validateExactRule(rule)
-				else this.validatePackageRule(rule)
+				else if (rule.packageName) this.validatePackageRule(rule)
+				else this.validateNamespaceRule(rule)
 			}
 			catch (error) {
 				if (error instanceof SkinResolutionError) {

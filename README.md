@@ -25,12 +25,13 @@ Applications declare package-wide and file-specific replacements in the `skin` s
 the `config.yaml` of a package that contributes a skin. The framework merges package and application configuration
 through `@itrocks/config`.
 
-YAML keys beginning with `@` must be quoted:
+YAML keys and values beginning with `@` must be quoted:
 
 ```yaml
 skin:
   '@itrocks/home': /app/home
   '@itrocks/list/feed.html': /app/list/my-feed.html
+  '@itrocks': '@my/skin'
 ```
 
 Only final `.html`, `.css`, `.jpg`, and `.png` files used at runtime are eligible. Authoring files under `src/` and
@@ -41,7 +42,7 @@ Paths beginning with `/` will be relative to the application root. Paths beginni
 
 ### Package skins and application overrides
 
-A standalone skin package depends on `@itrocks/skin`, publishes its replacement tree, and contributes a package rule:
+A standalone skin package depends on `@itrocks/skin`, publishes a replacement tree, and contributes a package rule:
 
 ```yaml
 # @demo/blue-skin/config.yaml
@@ -49,7 +50,7 @@ skin:
   '@itrocks/home': ./content
 ```
 
-The replacement tree mirrors every eligible final artifact from `@itrocks/home`, including build directories:
+The replacement tree keeps the published paths of the artifacts it replaces, including build directories:
 
 ```text
 content/
@@ -93,26 +94,70 @@ const file        = resolution.replacement ?? resolution.original
 
 `resolve()` accepts `template`, `style`, and `image` resources. It ignores files under `src/` and unsupported
 extensions. Exact published paths win over build-directory aliases, which win over package rules. Package rules are
-strict: validation fails when an eligible target artifact is missing, unless a file-specific rule overrides it.
+partial: when the corresponding target artifact is absent, resolution silently falls back to the original artifact.
+An exact file rule remains strict because it explicitly promises one replacement file.
 
 Targets and source rules containing traversal or mixed separators are rejected. Validation also resolves symbolic
 links and rejects any source or target that escapes its allowed package or application root.
 
 Validation issues contain a stable `code`, the offending `rule`, and an actionable `message`. Applications should
-fail bootstrap when `valid` is false rather than accepting traffic with an incomplete package skin.
+fail bootstrap when `valid` is false rather than accepting traffic with an invalid rule or target root.
+
+### Source rules and replacement layouts
+
+The following rule forms are accepted. `<relative>` is the complete published path below the source package, such as
+`cjs/views/feed.html`, `css/theme.css`, or `images/logo.png`.
+
+| Source rule                     | Scope                    | Paths searched below the target                    |
+|---------------------------------|--------------------------|----------------------------------------------------|
+| `@itrocks/home/<relative>`      | One exact artifact       | The configured target file                         |
+| `@itrocks/home/views/feed.html` | One HTML or CSS alias    | The configured target file                         |
+| `@itrocks/home`                 | One package              | `<relative>`                                       |
+| `@itrocks`                      | Every package in a scope | `@itrocks/home/<relative>`, then `home/<relative>` |
+
+HTML aliases omit one initial `cjs/` or `html/` directory. CSS aliases omit one initial `cjs/` or `css/` directory.
+Images have no alias. A complete exact rule takes priority over an alias, which takes priority over a package rule,
+which takes priority over a namespace rule.
+
+Unscoped packages use the equivalent `home/<relative>` and `home` source forms. Namespace rules apply only to scoped
+packages and therefore always start with `@`.
+
+Folder rules accept these target roots:
+
+| Configured target | Resolved target root                    |
+|-------------------|-----------------------------------------|
+| `/app/skin`       | `<appDir>/app/skin`                     |
+| `@my/skin`        | `<appDir>/node_modules/@my/skin`        |
+| `@myappnamespace` | `<appDir>/node_modules/@myappnamespace` |
+
+For example, `@itrocks: @my/skin` searches a request for `@itrocks/home/cjs/page.html` first at
+`node_modules/@my/skin/@itrocks/home/cjs/page.html`, then at `node_modules/@my/skin/home/cjs/page.html`. If neither
+file exists, it uses the original `node_modules/@itrocks/home/cjs/page.html` without an error.
 
 ## Diagnostics
 
-Runtime diagnostics are disabled by default. Enable them explicitly in application configuration when investigating
-a resolution:
+Runtime diagnostics are disabled by default through the exported `debug` boolean. Enable them explicitly while
+investigating replacement searches:
+
+```ts
+import { debug, setDebug } from '@itrocks/skin'
+
+console.log(debug) // false
+setDebug(true)
+```
+
+`setDebug(false)` disables them again. The setter keeps the exported live `debug` value synchronized for both
+CommonJS and ES module consumers. Existing applications can alternatively enable the composed integrations through
+configuration:
 
 ```yaml
 skinDiagnostics: true
 ```
 
-The composed template and Fastify integrations then write one debug entry per eligible resolution, including its
-resource kind, logical path, and replacement or unchanged outcome. Disable the flag after diagnosis because physical
-target paths are intentionally included.
+The composed template and Fastify integrations then write one `console.debug` entry whenever a matching rule starts a
+replacement search. Each entry contains the original physical file, the matching source-to-target configuration, all
+candidate replacement files in search order, and the selected replacement or explicitly labelled original fallback.
+Disable debugging after diagnosis because physical paths are intentionally included.
 
 Library callers can collect structured events without console output:
 
@@ -121,6 +166,8 @@ const resolver = new SkinResolver(config.skin ?? {}, appDir, {
 	diagnostic: event => audit.push(event)
 })
 ```
+
+Structured events expose `rule`, `candidates`, and `final` in addition to the normal resolution result.
 
 ## Runtime integration
 

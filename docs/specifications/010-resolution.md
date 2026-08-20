@@ -37,8 +37,12 @@ Tout chemin sous `src/` est refusé, même si son extension est admissible. Les 
 - Une image ne retire aucun dossier de son identifiant exact.
 - Un alias ambigu entre plusieurs artefacts publiés est invalide.
 - Une règle de package conserve exactement le chemin relatif réel sous la cible.
+- Une règle de namespace essaie le chemin avec le namespace source, puis le chemin limité au nom du package source.
+- Une règle de dossier est partielle : une ressource absente de la cible retombe sur l’original sans erreur.
 - Une cible `/...` est relative à `appDir`.
 - Une cible `./...` est déjà devenue absolue après la fusion de `@itrocks/config`.
+- Une cible de dossier `@scope/package` désigne un package installé.
+- Une cible de dossier `@scope` désigne le dossier de namespace correspondant sous `node_modules`.
 - Une cible n’est jamais réinjectée comme nouvelle source.
 - Les traversées de dossiers et sorties des racines autorisées sont refusées.
 
@@ -78,12 +82,19 @@ Les noms définitifs pourront être ajustés, mais la séparation entre résolut
    complet est exigé.
 7. **Étant donné** une traversée de dossier, **quand** la configuration est validée, **alors** elle est refusée avec la
    règle concernée.
+8. **Étant donné** un artefact absent de la cible d’une règle de package, **quand** il est résolu, **alors** l’original
+   est conservé sans erreur.
+9. **Étant donné** `@itrocks` ciblant un dossier, **quand** `@itrocks/home/cjs/page.html` est résolu, **alors** les
+   dispositions `@itrocks/home/cjs/page.html` puis `home/cjs/page.html` sont essayées.
+10. **Étant donné** une règle de namespace ciblant un package ou un dossier de namespace installé, **quand** une
+    ressource est résolue, **alors** la même liste de chemins relatifs est recherchée sous cette cible.
 
 ## Validation attendue
 
 - Tests sur racine, `html/`, `css/`, `cjs/` et sous-dossiers imbriqués.
 - Tests des quatre extensions admises et du refus de `src/`, `.scss`, `.js` et `.svg`.
-- Tests de priorité entre chemin complet, alias et package.
+- Tests de priorité entre chemin complet, alias, package et namespace.
+- Tests du fallback de dossier et des cibles package et namespace installées.
 - Tests de sécurité sur `..`, séparateurs mixtes et liens symboliques.
 - Tests de configuration issue d’un package et de l’application.
 
@@ -103,8 +114,8 @@ Les noms définitifs pourront être ajustés, mais la séparation entre résolut
 1. Un artefact demandé mais absent de la cible provoque une erreur explicite.
 2. Un artefact absent de la cible retombe silencieusement sur le package d’origine.
 
-**Recommandation :** option 1. Une règle de package signifie que son arborescence finale est remplacée. Le remplacement
-partiel reste explicite grâce aux règles de fichier.
+**Recommandation initiale :** option 1. Une règle de package signifiait que son arborescence finale était remplacée.
 
-**Décision :** option 1. Une règle de package est stricte. Sa validation exige la présence de chaque artefact
-admissible sous la cible, tandis qu’une règle de fichier permet un remplacement partiel explicite.
+**Décision révisée :** option 2. Une règle de dossier, de package ou de namespace est partielle. Chaque artefact absent
+de la cible retombe silencieusement sur l’original. Une règle de fichier reste stricte car elle désigne explicitement
+un fichier cible.

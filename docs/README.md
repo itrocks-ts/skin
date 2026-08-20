@@ -3,7 +3,7 @@
 Ce document est l’index des spécifications du package. Il constitue la source de vérité pour leur ordre, leur statut et
 leurs preuves de validation.
 
-Dernière mise à jour : 2026-08-19<br>
+Dernière mise à jour : 2026-08-20<br>
 État actuel : **package stabilisé, documenté et validé**<br>
 Prochaine action : **aucune spécification ouverte**
 
@@ -50,7 +50,8 @@ surcharge de `httpCall()` ne peut pas préserver son comportement.
 
 ### SKIN-S010 — Résolution
 
-- `npm test` : 15 tests réussis sur les alias, priorités, extensions, racines, traversées et liens symboliques ;
+- `npm test` : tests réussis sur les alias, priorités, namespaces, fallbacks, extensions, racines, traversées et liens
+  symboliques ;
 - test de situation réelle : l’alias `@itrocks/list/feed.html` résout le fichier final voisin
   `@itrocks/list/cjs/feed.html` vers un remplacement installé dans `@itrocks/home` ;
 - `npm pack --dry-run --json` : l’archive contient la façade, le résolveur JavaScript et ses déclarations, sans les
@@ -58,7 +59,7 @@ surcharge de `httpCall()` ne peut pas préserver son comportement.
 
 ### SKIN-S020 — HTML
 
-- `npm test` : 20 tests réussis au total, dont 5 tests d’intégration de `SkinTemplate` ;
+- `npm test` : 32 tests réussis au total, dont 7 tests d’intégration de `SkinTemplate` ;
 - remplacements exacts validés à la racine, sous `cjs/`, sous `html/` et dans un sous-dossier ;
 - règle de package validée sur une action, son container, un include relatif et la collecte de sa dépendance de head ;
 - non-régression validée pour les sources sous `src/` et pour une cible installée dans `node_modules` sans substitution
@@ -66,7 +67,7 @@ surcharge de `httpCall()` ne peut pas préserver son comportement.
 
 ### SKIN-S030 — CSS et images
 
-- `npm test` : 27 tests réussis au total, dont 7 tests d’intégration HTTP de `SkinFastifyServer` ;
+- `npm test` : 32 tests réussis au total, dont 7 tests d’intégration HTTP de `SkinFastifyServer` ;
 - CSS validés à la racine, sous `css/`, sous `cjs/` et dans un sous-dossier, avec conservation du type MIME et du
   cache ;
 - JPG et PNG validés à la racine et dans des sous-dossiers, y compris une image relative sous une règle de package ;
@@ -75,10 +76,10 @@ surcharge de `httpCall()` ne peut pas préserver son comportement.
 
 ### SKIN-S040 — Stabilisation
 
-- `npm test` : 29 tests réussis, avec configuration fusionnée d’un package de skin autonome et d’une surcharge exacte
+- `npm test` : 32 tests réussis, avec configuration fusionnée d’un package de skin autonome et d’une surcharge exacte
   applicative, validation du skin complet, rendu HTML et composition du bootstrap ;
 - exemples fournis pour une application minimale et un package de skin autonome ;
-- diagnostic désactivé par défaut, activable par configuration ou callback structuré ;
+- diagnostic désactivé par défaut, activable par l’export `debug`, par configuration ou par callback structuré ;
 - compatibilité validée avec Node.js 24.19.0, TypeScript 7.0.2, Fastify 5.12.0, `@itrocks/fastify` 0.2.7 et
   `@itrocks/template` 0.2.3 ;
 - `npm pack --dry-run --json` : seuls la configuration, la documentation utilisateur, la licence, le JavaScript
@@ -106,7 +107,7 @@ l’ensemble des intégrations.
 Les décisions détaillées et leurs motivations restent consignées dans chaque spécification :
 
 ```text
-SKIN-S010-Q1 : stricte.
+SKIN-S010-Q1 : fallback sur l’original.
 SKIN-S020-Q1 : contexte du remplacement.
 SKIN-S030-Q1 : composition sans hook Fastify.
 ```

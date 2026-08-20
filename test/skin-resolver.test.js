@@ -80,7 +80,7 @@ test('gives a complete file rule priority over its alias and package rule', asyn
 	})
 })
 
-test('keeps the complete published path for strict package rules', async context => {
+test('keeps the complete published path for package rules', async context => {
 	const app = fixture(context)
 	const style = app.file('css/themes/theme.css')
 	const jpg   = app.file('images/photo.jpg')
@@ -96,7 +96,7 @@ test('keeps the complete published path for strict package rules', async context
 	assert.equal(resolver.resolve(png, 'image').replacement, targetPng)
 })
 
-test('lets exact application rules complete a strict package skin', async context => {
+test('lets exact application rules override a partial package skin', async context => {
 	const app = fixture(context)
 	const feed = app.file('cjs/feed.html')
 	const logo = app.file('images/logo.png')
@@ -159,11 +159,17 @@ test('emits structured diagnostics only when a callback is explicitly configured
 	resolver.resolve(original, 'template')
 
 	assert.deepEqual(events, [{
+		candidates: [target],
+		final: target,
 		found: true,
 		kind: 'template',
 		logical: '@demo/content/cjs/feed.html',
 		original,
-		replacement: target
+		replacement: target,
+		rule: {
+			source: '@demo/content/feed.html',
+			target: '/skin/feed.html'
+		}
 	}])
 	assert.doesNotThrow(() => new SkinResolver({}, app.appDir).resolve(original, 'template'))
 })
@@ -240,15 +246,68 @@ test('supports a locally installed package represented by a root symbolic link',
 	assert.equal(fs.realpathSync(source), source)
 })
 
-test('reports a missing artifact under a strict package target', async context => {
+test('falls back to the original artifact when it is missing from a package target', async context => {
 	const app = fixture(context)
-	app.file('css/theme.css')
+	const original = app.file('css/theme.css')
 	fs.mkdirSync(path.join(app.appDir, 'skin', 'package'), { recursive: true })
-	const validation = await new SkinResolver({ '@demo/content': '/skin/package' }, app.appDir).validate()
+	const events   = []
+	const resolver = new SkinResolver(
+		{ '@demo/content': '/skin/package' },
+		app.appDir,
+		{ diagnostic: event => events.push(event) }
+	)
 
-	assert.equal(validation.valid, false)
-	assert.deepEqual(validation.issues.map(issue => issue.code), ['TARGET_NOT_FOUND'])
-	assert.match(validation.issues[0].message, /@demo\/content/)
+	assert.deepEqual(await resolver.validate(), { issues: [], valid: true })
+	assert.deepEqual(resolver.resolve(original, 'style'), {
+		found: false,
+		logical: '@demo/content/css/theme.css',
+		original
+	})
+	assert.deepEqual(events[0], {
+		candidates: [path.join(app.appDir, 'skin/package/css/theme.css')],
+		final: original,
+		found: false,
+		kind: 'style',
+		logical: '@demo/content/css/theme.css',
+		original,
+		rule: { source: '@demo/content', target: '/skin/package' }
+	})
+})
+
+test('resolves namespace rules with namespaced then package-only layouts and an original fallback', async context => {
+	const app         = fixture(context)
+	const template    = app.file('cjs/page.html')
+	const style       = app.file('css/theme.css')
+	const image       = app.file('images/logo.png')
+	const namespaced  = app.target('skin/@demo/content/cjs/page.html')
+	app.target('skin/content/cjs/page.html')
+	const packageOnly = app.target('skin/content/css/theme.css')
+	const resolver    = new SkinResolver({ '@demo': '/skin' }, app.appDir)
+
+	assert.deepEqual(await resolver.validate(), { issues: [], valid: true })
+	assert.equal(resolver.resolve(template, 'template').replacement, namespaced)
+	assert.equal(resolver.resolve(style, 'style').replacement, packageOnly)
+	assert.deepEqual(resolver.resolve(image, 'image'), {
+		found: false,
+		logical: '@demo/content/images/logo.png',
+		original: image
+	})
+})
+
+test('accepts an installed package or package namespace as a namespace target', async context => {
+	const app           = fixture(context)
+	const template      = app.file('cjs/page.html')
+	app.target('node_modules/@my/skin/package.json', '{"name":"@my/skin"}')
+	const packageTarget = app.target('node_modules/@my/skin/content/cjs/page.html')
+	let resolver        = new SkinResolver({ '@demo': '@my/skin' }, app.appDir)
+
+	assert.deepEqual(await resolver.validate(), { issues: [], valid: true })
+	assert.equal(resolver.resolve(template, 'template').replacement, packageTarget)
+
+	const namespaceTarget = app.target('node_modules/@myappnamespace/content/cjs/page.html')
+	resolver = new SkinResolver({ '@demo': '@myappnamespace' }, app.appDir)
+	assert.deepEqual(await resolver.validate(), { issues: [], valid: true })
+	assert.equal(resolver.resolve(template, 'template').replacement, namespaceTarget)
 })
 
 test('reports a configuration rule for a package that is not installed', async context => {
