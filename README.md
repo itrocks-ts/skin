@@ -79,7 +79,7 @@ before reading or serving them:
 ```ts
 import { appDir }       from '@itrocks/app-dir'
 import { config }       from '@itrocks/config'
-import { SkinResolver } from '@itrocks/skin'
+import { SkinResolver } from '@itrocks/skin/resolver'
 
 const resolver   = new SkinResolver(config.skin ?? {}, appDir)
 const validation = await resolver.validate()
@@ -91,6 +91,10 @@ if (!validation.valid) {
 const resolution = resolver.resolve(templateFile, 'template')
 const file        = resolution.replacement ?? resolution.original
 ```
+
+The dedicated `resolver` subpath does not load the Fastify or template integration classes.
+Use it when validating skin configuration after the application composition has been installed,
+so resolving configuration cannot recursively load an integration that is currently being composed.
 
 `resolve()` accepts `template`, `style`, and `image` resources. It ignores files under `src/` and unsupported
 extensions. Exact published paths win over build-directory aliases, which win over package rules. Package rules are

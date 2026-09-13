@@ -21,6 +21,7 @@
 	"exports": {
 		".": "./cjs/skin.js",
 		"./fastify": "./cjs/skin-fastify-server.js",
+		"./resolver": "./cjs/skin-resolver.js",
 		"./template": "./cjs/skin-template.js"
 	},
 	"files": [
@@ -54,5 +55,5 @@
 		"build": "tsc",
 		"test": "npm run build && node --test --test-isolation=none test/*.test.js"
 	},
-	"version": "0.1.0"
+	"version": "0.1.1"
 }

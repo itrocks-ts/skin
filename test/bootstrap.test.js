@@ -1,8 +1,9 @@
-const assert = require('node:assert/strict')
-const fs     = require('node:fs')
-const os     = require('node:os')
-const path   = require('node:path')
-const test   = require('node:test')
+const assert        = require('node:assert/strict')
+const fs            = require('node:fs')
+const os            = require('node:os')
+const path          = require('node:path')
+const { spawnSync } = require('node:child_process')
+const test          = require('node:test')
 
 const appDirModule                       = require('@itrocks/app-dir')
 const { compose }                         = require('@itrocks/compose')
@@ -21,6 +22,29 @@ function createFile(file, content)
 test('exports integration subclasses', () => {
 	assert.equal(Object.getPrototypeOf(SkinFastifyServer), FastifyServer)
 	assert.equal(Object.getPrototypeOf(SkinTemplate), Template)
+})
+
+test('loads the resolver after composition without recursively loading runtime integrations', context => {
+	const application = fs.mkdtempSync(path.join(os.tmpdir(), 'itrocks-skin-resolver-bootstrap-'))
+	context.after(() => fs.rmSync(application, { force: true, recursive: true }))
+	fs.symlinkSync(path.resolve(__dirname, '../../..'), path.join(application, 'node_modules'), 'dir')
+	createFile(path.join(application, 'package.json'), JSON.stringify({
+		dependencies: { '@itrocks/skin': 'latest' }
+	}))
+	const script = `
+		const { compose }                 = require('@itrocks/compose')
+		const { config, scanConfigFiles } = require('@itrocks/config')
+		scanConfigFiles().then(() => {
+			compose(process.cwd(), config.compose)
+			const { SkinResolver } = require('@itrocks/skin/resolver')
+			if (!SkinResolver) process.exitCode = 2
+		})
+	`
+	const child = spawnSync(process.execPath, ['-e', script], {
+		cwd:      application,
+		encoding: 'utf8'
+	})
+	assert.equal(child.status, 0, child.stderr || child.stdout)
 })
 
 test('loads and composes each integration class through the framework bootstrap configuration', async context => {

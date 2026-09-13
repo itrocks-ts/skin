@@ -132,6 +132,20 @@ test('does not replace sources or unsupported final extensions', async context =
 	}
 })
 
+test('ignores artifacts installed below a dependency node_modules directory', async context => {
+	const app        = fixture(context)
+	const nestedRoot = path.join(app.packageRoot, 'node_modules', '@demo', 'nested')
+	createFile(path.join(nestedRoot, 'package.json'), '{"name":"@demo/nested"}')
+	const nested   = createFile(path.join(nestedRoot, 'cjs', 'feed.html'))
+	const resolver = new SkinResolver({ '@demo': '/skin' }, app.appDir)
+
+	assert.deepEqual(resolver.resolve(nested, 'template'), {
+		found:    false,
+		logical:  nested,
+		original: nested
+	})
+})
+
 test('preserves a supported final artifact when no skin rule is configured', async context => {
 	const app      = fixture(context)
 	const template = app.file('cjs/feed.html')

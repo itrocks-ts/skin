@@ -309,6 +309,7 @@ export class SkinResolver
 		const segments      = fromModules.split(sep)
 		const packageLength = segments[0]?.startsWith('@') ? 2 : 1
 		if (segments.length <= packageLength) return
+		if (segments.slice(packageLength).includes('node_modules')) return
 		const packageName = segments.slice(0, packageLength).join('/')
 		const relativePath = segments.slice(packageLength).join('/')
 		const kind         = kindOf(relativePath)
